@@ -37,6 +37,14 @@ Decrypts `zsh/secrets.age` and exports the variables into the current shell sess
 load_secrets
 ```
 
+### `edit_secrets`
+
+Decrypts `zsh/secrets.age` into a temp file, opens it in `$EDITOR` (defaults to `vim`), and re-encrypts with a passphrase on close. The plaintext temp file is shredded on exit, even if the editor is interrupted. Skips re-encryption if the contents are unchanged.
+
+```bash
+edit_secrets
+```
+
 ### `export_claude`
 
 Sets `HTTP_PROXY` and `HTTPS_PROXY` using `CLAUDE_PROXY_IP` and `CLAUDE_PROXY_PORT` from secrets. Requires `load_secrets` to be run first.
@@ -66,15 +74,7 @@ rm secrets.env
 
 ### Updating secrets
 
-Decrypt to a temporary file, edit, re-encrypt, and remove the plaintext:
-
-```bash
-cd dotfiles/zsh
-age -d secrets.age > secrets.env
-# edit secrets.env
-age -p -o secrets.age secrets.env
-rm secrets.env
-```
+Use `edit_secrets` — it handles decryption, editing, re-encryption, and secure cleanup in one step.
 
 ### Format
 

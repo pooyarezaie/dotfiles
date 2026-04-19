@@ -29,3 +29,38 @@ function load_secrets {
     eval "$decrypted"
     echo "Secrets loaded into current session."
 }
+
+function edit_secrets {
+    local secrets_file="${DOTFILES_DIR}/zsh/secrets.age"
+    local tmpdir
+    tmpdir=$(mktemp -d) || return 1
+    chmod 700 "$tmpdir"
+    local tmpfile="${tmpdir}/secrets.env"
+
+    # Shred plaintext on any exit path (success, error, or interrupt).
+    trap "shred -u '$tmpfile' 2>/dev/null; rmdir '$tmpdir' 2>/dev/null" EXIT INT TERM
+
+    if [[ -f "$secrets_file" ]]; then
+        age -d "$secrets_file" > "$tmpfile" || { trap - EXIT INT TERM; shred -u "$tmpfile" 2>/dev/null; rmdir "$tmpdir"; return 1; }
+    else
+        touch "$tmpfile"
+    fi
+    chmod 600 "$tmpfile"
+
+    local before after
+    before=$(sha256sum "$tmpfile")
+    ${EDITOR:-vim} "$tmpfile"
+    after=$(sha256sum "$tmpfile")
+
+    if [[ "$before" == "$after" ]]; then
+        echo "No changes; secrets.age untouched."
+    else
+        age -p -o "${secrets_file}.new" "$tmpfile" && mv "${secrets_file}.new" "$secrets_file" \
+            && echo "Secrets re-encrypted to ${secrets_file}." \
+            || { echo "Encryption failed; original secrets.age kept."; rm -f "${secrets_file}.new"; }
+    fi
+
+    shred -u "$tmpfile" 2>/dev/null
+    rmdir "$tmpdir" 2>/dev/null
+    trap - EXIT INT TERM
+}
