@@ -26,7 +26,21 @@ function load_secrets {
     fi
     local decrypted
     decrypted=$(age -d "$secrets_file") || return 1
-    eval "$decrypted"
+
+    # Parse KEY=VALUE lines instead of eval-ing — a tampered secrets.age
+    # shouldn't be able to run arbitrary code. Supports optional leading
+    # `export` and `#`-prefixed comments; rejects anything else.
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        [[ "$line" == export\ * ]] && line="${line#export }"
+        if [[ "$line" =~ '^[A-Za-z_][A-Za-z0-9_]*=' ]]; then
+            export "$line"
+        else
+            echo "load_secrets: skipping malformed line: $line" >&2
+        fi
+    done <<< "$decrypted"
+
     echo "Secrets loaded into current session."
 }
 
