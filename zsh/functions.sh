@@ -30,15 +30,27 @@ function load_secrets {
     # Parse KEY=VALUE lines instead of eval-ing — a tampered secrets.age
     # shouldn't be able to run arbitrary code. Supports optional leading
     # `export` and `#`-prefixed comments; rejects anything else.
-    local line
+    local line key
     while IFS= read -r line; do
         [[ -z "$line" || "$line" == \#* ]] && continue
         [[ "$line" == export\ * ]] && line="${line#export }"
-        if [[ "$line" =~ '^[A-Za-z_][A-Za-z0-9_]*=' ]]; then
-            export "$line"
-        else
+        if [[ ! "$line" =~ '^[A-Za-z_][A-Za-z0-9_]*=' ]]; then
             echo "load_secrets: skipping malformed line: $line" >&2
+            continue
         fi
+        key="${line%%=*}"
+        # Refuse env vars that can hijack the shell or loader — a tampered
+        # secrets.age must not be able to redirect PATH, preload libs, or
+        # inject code via prompt/shell-init hooks.
+        case "$key" in
+            PATH|IFS|SHELL|HOME|USER|CDPATH|FPATH|ENV|BASH_ENV|ZDOTDIR|\
+            PROMPT_COMMAND|PS0|PS1|PS2|PS3|PS4|\
+            LD_*|DYLD_*|PERL5OPT|PYTHONPATH|RUBYLIB|NODE_OPTIONS|NODE_PATH)
+                echo "load_secrets: refusing to set sensitive var: $key" >&2
+                continue
+                ;;
+        esac
+        export "$line"
     done <<< "$decrypted"
 
     echo "Secrets loaded into current session."
