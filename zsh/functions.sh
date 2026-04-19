@@ -32,8 +32,14 @@ function load_secrets {
 
 function edit_secrets {
     local secrets_file="${DOTFILES_DIR}/zsh/secrets.age"
+    # Prefer tmpfs ($XDG_RUNTIME_DIR) so plaintext never hits a journaling
+    # filesystem where shred is unreliable. Fall back to the system default.
+    local tmpbase="${XDG_RUNTIME_DIR:-}"
+    if [[ -z "$tmpbase" || ! -w "$tmpbase" ]]; then
+        tmpbase="${TMPDIR:-/tmp}"
+    fi
     local tmpdir
-    tmpdir=$(mktemp -d) || return 1
+    tmpdir=$(mktemp -d "${tmpbase}/edit_secrets.XXXXXX") || return 1
     chmod 700 "$tmpdir"
     local tmpfile="${tmpdir}/secrets.env"
 
