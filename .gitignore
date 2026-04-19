@@ -1,3 +1,12 @@
 secrets.env
+secrets.env*
+!secrets.env.example
+secrets.age.new
 *.age
 .claude/
+
+# Editor leftovers that may contain plaintext
+*.swp
+*.swo
+*~
+.*.un~
