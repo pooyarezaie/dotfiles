@@ -168,3 +168,79 @@ function kube_unlock {
     export KUBECONFIG="$outfile"
     echo "kubectl config rendered to $outfile; KUBECONFIG set for this session."
 }
+
+function claude_wipe {
+    local claude_dir="$HOME/.claude"
+    if [[ ! -d "$claude_dir" ]]; then
+        echo "$claude_dir does not exist" >&2
+        return 1
+    fi
+
+    # --all: wipe every transient directory, keep credentials/settings/plugins.
+    if [[ "$1" == "--all" ]]; then
+        echo "About to shred ALL Claude Code transient state under $claude_dir."
+        echo "Keeps: .credentials.json, settings.json, plugins/."
+        echo "If Claude Code is currently running, close it first for a clean wipe."
+        printf "Type 'yes' to confirm: "
+        local answer
+        read -r answer
+        [[ "$answer" == "yes" ]] || { echo "Aborted."; return 1; }
+
+        local targets=(
+            "$claude_dir/projects"
+            "$claude_dir/file-history"
+            "$claude_dir/session-env"
+            "$claude_dir/shell-snapshots"
+            "$claude_dir/sessions"
+            "$claude_dir/backups"
+            "$claude_dir/cache"
+            "$claude_dir/telemetry"
+            "$claude_dir/downloads"
+            "$claude_dir/history.jsonl"
+        )
+        local t
+        for t in "${targets[@]}"; do
+            [[ -e "$t" ]] || continue
+            find "$t" -type f -exec shred -u {} + 2>/dev/null
+            rm -rf "$t" 2>/dev/null
+        done
+        echo "Wiped all Claude Code transient state."
+        return 0
+    fi
+
+    # Single session: explicit id or most-recent by mtime.
+    local session_id="$1"
+    if [[ -z "$session_id" ]]; then
+        session_id=$(find "$claude_dir/projects" -maxdepth 2 -name '*.jsonl' -printf '%T@ %f\n' 2>/dev/null \
+            | sort -rn | head -1 | awk '{print $2}' | sed 's/\.jsonl$//')
+        if [[ -z "$session_id" ]]; then
+            echo "No recent session found under $claude_dir/projects." >&2
+            return 1
+        fi
+        echo "Most recent session: $session_id"
+    fi
+
+    if [[ ! "$session_id" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' ]]; then
+        echo "Not a valid session id (uuid expected): $session_id" >&2
+        return 1
+    fi
+
+    # (N) makes each glob null-match if nothing is there, so missing paths
+    # don't error out.
+    local targets=(
+        "$claude_dir"/projects/*/"${session_id}.jsonl"(N)
+        "$claude_dir"/projects/*/"${session_id}"(N/)
+        "$claude_dir/file-history/${session_id}"(N/)
+        "$claude_dir/session-env/${session_id}"(N/)
+    )
+    if (( ${#targets[@]} == 0 )); then
+        echo "No files found for session $session_id." >&2
+        return 1
+    fi
+    local t
+    for t in "${targets[@]}"; do
+        find "$t" -type f -exec shred -u {} + 2>/dev/null
+        rm -rf "$t" 2>/dev/null
+    done
+    echo "Wiped ${#targets[@]} path(s) for session $session_id."
+}

@@ -68,6 +68,18 @@ Another terminal running kubectl won't have `KUBECONFIG` set and will fall throu
 
 See [`DESIGN.md`](DESIGN.md) for why the workflow is structured this way and what alternatives were considered.
 
+### `claude_wipe`
+
+Shreds Claude Code's local state under `~/.claude` (conversation transcripts, per-session file history, session env state, etc.) while keeping `.credentials.json`, `settings.json`, and `plugins/`. Useful after a session in which secrets were pasted or read into Claude's context.
+
+```bash
+claude_wipe                  # wipes the most recent session
+claude_wipe <session-uuid>   # wipes a specific session
+claude_wipe --all            # wipes everything transient (prompts to confirm)
+```
+
+If Claude Code is actively running, the transcript file can be recreated mid-wipe. Close Claude first for a clean sweep.
+
 ## Secrets Management
 
 Secrets are stored encrypted with `age` and are never committed to the repository.
