@@ -32,6 +32,9 @@ function load_secrets {
     # `export` and `#`-prefixed comments; rejects anything else.
     local line key
     while IFS= read -r line; do
+        # Strip CRLF trailer so CRLF-edited files (Windows/WSL) don't
+        # smuggle a literal \r into the value.
+        line="${line%$'\r'}"
         [[ -z "$line" || "$line" == \#* ]] && continue
         [[ "$line" == export\ * ]] && line="${line#export }"
         if [[ ! "$line" =~ '^[A-Za-z_][A-Za-z0-9_]*=' ]]; then
