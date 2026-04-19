@@ -40,10 +40,10 @@ function edit_secrets {
     # Shred every file in tmpdir on any exit — editors (vim .swp, emacs #file#,
     # backup ~ files, persistent undo) may write siblings next to $tmpfile.
     local cleanup="find '$tmpdir' -type f -exec shred -u {} + 2>/dev/null; rm -rf '$tmpdir' 2>/dev/null"
-    trap "$cleanup" EXIT INT TERM
+    trap "$cleanup" EXIT HUP INT QUIT TERM
 
     if [[ -f "$secrets_file" ]]; then
-        age -d "$secrets_file" > "$tmpfile" || { trap - EXIT INT TERM; eval "$cleanup"; return 1; }
+        age -d "$secrets_file" > "$tmpfile" || { trap - EXIT HUP INT QUIT TERM; eval "$cleanup"; return 1; }
     else
         touch "$tmpfile"
     fi
@@ -72,5 +72,5 @@ function edit_secrets {
     fi
 
     eval "$cleanup"
-    trap - EXIT INT TERM
+    trap - EXIT HUP INT QUIT TERM
 }
