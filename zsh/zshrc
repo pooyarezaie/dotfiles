@@ -111,6 +111,8 @@ export VISUAL=vim
 export EDITOR="$VISUAL"
 
 export PATH=$PATH:/usr/local/go/bin
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 export PATH=$HOME/.local/bin:$PATH
+
 
 source ~/workspace/github.com/pooyarezaie/dotfiles/zsh/functions.sh

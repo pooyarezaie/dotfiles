@@ -1,0 +1,61 @@
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: ${KUBE_CA_DATA_HWB}
+    server: ${KUBE_SERVER_HWB}
+  name: hwb
+- cluster:
+    certificate-authority-data: ${KUBE_CA_DATA_NEDA}
+    server: ${KUBE_SERVER_NEDA}
+  name: neda-bare
+contexts:
+- context:
+    cluster: hwb
+    user: pooya-hwb
+  name: hwb
+- context:
+    cluster: neda-bare
+    user: pooya-neda
+  name: neda
+current-context: hwb
+kind: Config
+preferences: {}
+users:
+- name: pooya-hwb
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      args:
+      - oidc-login
+      - get-token
+      - --oidc-issuer-url=${OIDC_ISSUER_URL}
+      - --oidc-client-id=${OIDC_CLIENT_ID_HWB}
+      - --oidc-client-secret=${OIDC_CLIENT_SECRET_HWB}
+      - --oidc-extra-scope=email
+      - --oidc-extra-scope=uid
+      - --oidc-extra-scope=user_type
+      - --oidc-extra-scope=profile
+      - --token-cache-dir=${KUBE_OIDC_CACHE_DIR}
+      command: kubectl
+      env: null
+      interactiveMode: Never
+      provideClusterInfo: false
+- name: pooya-neda
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      args:
+      - oidc-login
+      - get-token
+      - --oidc-issuer-url=${OIDC_ISSUER_URL}
+      - --oidc-client-id=${OIDC_CLIENT_ID_NEDA}
+      - --oidc-client-secret=${OIDC_CLIENT_SECRET_NEDA}
+      - --oidc-extra-scope=email
+      - --oidc-extra-scope=uid
+      - --oidc-extra-scope=user_type
+      - --oidc-extra-scope=profile
+      - --token-cache-dir=${KUBE_OIDC_CACHE_DIR}
+      command: kubectl
+      env: null
+      interactiveMode: Never
+      provideClusterInfo: false

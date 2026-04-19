@@ -54,6 +54,20 @@ load_secrets      # enter password
 export_claude     # proxy is now active
 ```
 
+### `kube_unlock`
+
+Renders `kube/config.template` into `$XDG_RUNTIME_DIR/kube/config` (tmpfs, 0600) by substituting the `KUBE_*` and `OIDC_*` env vars, then exports `KUBECONFIG` so `kubectl` uses the rendered file in this shell only. `kubelogin`'s short-lived OIDC token cache is pinned to `$XDG_RUNTIME_DIR/kube/oidc-cache` (also tmpfs) via `--token-cache-dir`, so refresh/access tokens share the same per-session lifetime. Requires `load_secrets` first and `envsubst` (from `gettext-base`).
+
+```bash
+load_secrets      # enter passphrase
+kube_unlock       # kubectl now works in this terminal
+kubectl get pods
+```
+
+Another terminal running kubectl won't have `KUBECONFIG` set and will fall through to whatever (if anything) is at `~/.kube/config`.
+
+See [`DESIGN.md`](DESIGN.md) for why the workflow is structured this way and what alternatives were considered.
+
 ## Secrets Management
 
 Secrets are stored encrypted with `age` and are never committed to the repository.

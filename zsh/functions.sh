@@ -114,3 +114,57 @@ function edit_secrets {
     eval "$cleanup"
     trap - EXIT HUP INT QUIT TERM
 }
+
+function kube_unlock {
+    local template="${DOTFILES_DIR}/kube/config.template"
+    if [[ ! -f "$template" ]]; then
+        echo "No kube template at $template" >&2
+        return 1
+    fi
+    if ! command -v envsubst >/dev/null; then
+        echo "envsubst not installed (apt install gettext-base)" >&2
+        return 1
+    fi
+
+    local required=(
+        KUBE_SERVER_HWB KUBE_SERVER_NEDA
+        KUBE_CA_DATA_HWB KUBE_CA_DATA_NEDA
+        OIDC_ISSUER_URL
+        OIDC_CLIENT_ID_HWB OIDC_CLIENT_ID_NEDA
+        OIDC_CLIENT_SECRET_HWB OIDC_CLIENT_SECRET_NEDA
+    )
+    local var missing=()
+    for var in "${required[@]}"; do
+        [[ -z "${(P)var}" ]] && missing+=("$var")
+    done
+    if (( ${#missing[@]} > 0 )); then
+        echo "kube_unlock: missing env vars (run load_secrets first): ${missing[*]}" >&2
+        return 1
+    fi
+
+    # Render to tmpfs so the decrypted kubeconfig never touches spinning disk
+    # and disappears on reboot. The oidc-login token cache goes alongside
+    # it so cached OIDC tokens share the same lifetime.
+    local outdir="${XDG_RUNTIME_DIR:-/tmp}/kube"
+    local oidc_cache="${outdir}/oidc-cache"
+    mkdir -p "$oidc_cache" && chmod 700 "$outdir" "$oidc_cache" || return 1
+    local outfile="${outdir}/config"
+
+    local old_umask
+    old_umask=$(umask)
+    umask 077
+    # Restrict substitution to the listed vars so no stray $FOO inside a
+    # secret value gets interpreted.
+    KUBE_OIDC_CACHE_DIR="$oidc_cache" envsubst \
+        '${KUBE_SERVER_HWB} ${KUBE_SERVER_NEDA}
+         ${KUBE_CA_DATA_HWB} ${KUBE_CA_DATA_NEDA}
+         ${OIDC_ISSUER_URL}
+         ${OIDC_CLIENT_ID_HWB} ${OIDC_CLIENT_ID_NEDA}
+         ${OIDC_CLIENT_SECRET_HWB} ${OIDC_CLIENT_SECRET_NEDA}
+         ${KUBE_OIDC_CACHE_DIR}' \
+        < "$template" > "$outfile" || { umask "$old_umask"; return 1; }
+    umask "$old_umask"
+
+    export KUBECONFIG="$outfile"
+    echo "kubectl config rendered to $outfile; KUBECONFIG set for this session."
+}
