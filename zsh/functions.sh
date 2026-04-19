@@ -37,11 +37,13 @@ function edit_secrets {
     chmod 700 "$tmpdir"
     local tmpfile="${tmpdir}/secrets.env"
 
-    # Shred plaintext on any exit path (success, error, or interrupt).
-    trap "shred -u '$tmpfile' 2>/dev/null; rmdir '$tmpdir' 2>/dev/null" EXIT INT TERM
+    # Shred every file in tmpdir on any exit — editors (vim .swp, emacs #file#,
+    # backup ~ files, persistent undo) may write siblings next to $tmpfile.
+    local cleanup="find '$tmpdir' -type f -exec shred -u {} + 2>/dev/null; rm -rf '$tmpdir' 2>/dev/null"
+    trap "$cleanup" EXIT INT TERM
 
     if [[ -f "$secrets_file" ]]; then
-        age -d "$secrets_file" > "$tmpfile" || { trap - EXIT INT TERM; shred -u "$tmpfile" 2>/dev/null; rmdir "$tmpdir"; return 1; }
+        age -d "$secrets_file" > "$tmpfile" || { trap - EXIT INT TERM; eval "$cleanup"; return 1; }
     else
         touch "$tmpfile"
     fi
@@ -49,7 +51,16 @@ function edit_secrets {
 
     local before after
     before=$(sha256sum "$tmpfile")
-    ${EDITOR:-vim} "$tmpfile"
+    case "${EDITOR:-vim}" in
+        *vim|*vi)
+            ${EDITOR:-vim} -n -i NONE \
+                --cmd 'set nobackup nowritebackup noundofile noswapfile viminfo=' \
+                "$tmpfile"
+            ;;
+        *)
+            ${EDITOR:-vim} "$tmpfile"
+            ;;
+    esac
     after=$(sha256sum "$tmpfile")
 
     if [[ "$before" == "$after" ]]; then
@@ -60,7 +71,6 @@ function edit_secrets {
             || { echo "Encryption failed; original secrets.age kept."; rm -f "${secrets_file}.new"; }
     fi
 
-    shred -u "$tmpfile" 2>/dev/null
-    rmdir "$tmpdir" 2>/dev/null
+    eval "$cleanup"
     trap - EXIT INT TERM
 }
