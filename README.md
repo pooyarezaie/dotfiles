@@ -76,9 +76,15 @@ Shreds Claude Code's local state under `~/.claude` (conversation transcripts, pe
 claude_wipe                  # wipes the most recent session
 claude_wipe <session-uuid>   # wipes a specific session
 claude_wipe --all            # wipes everything transient (prompts to confirm)
+claude_wipe --with-memory    # --all plus per-project memory/ and downloads/
+claude_wipe --all --dry-run  # list what would be shredded; modifies nothing
 ```
 
-If Claude Code is actively running, the transcript file can be recreated mid-wipe. Close Claude first for a clean sweep.
+Per-project `memory/` and `downloads/` are preserved by default on `--all` because they're deliberate long-term state (curated memory, files you explicitly fetched), not session spillover. Pass `--with-memory` to wipe them too.
+
+`--dry-run` composes with any mode (bare, `<sid>`, `--all`, `--with-memory`) and prints the targets without touching anything.
+
+If Claude Code is actively running, the transcript file can be recreated mid-wipe; the function prints a reminder. Close Claude first for a clean sweep.
 
 ## Secrets Management
 

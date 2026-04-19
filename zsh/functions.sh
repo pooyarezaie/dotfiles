@@ -176,18 +176,61 @@ function claude_wipe {
         return 1
     fi
 
-    # --all: wipe every transient directory, keep credentials/settings/plugins.
-    if [[ "$1" == "--all" ]]; then
-        echo "About to shred ALL Claude Code transient state under $claude_dir."
+    # Pull --dry-run out of the arg list so it composes with any other mode.
+    local dry_run=0
+    local args=()
+    local a
+    for a in "$@"; do
+        if [[ "$a" == "--dry-run" ]]; then
+            dry_run=1
+        else
+            args+=("$a")
+        fi
+    done
+
+    # --all / --with-memory: wipe every transient directory.
+    # --with-memory also wipes per-project memory/ and downloads/.
+    if [[ "${args[1]}" == "--all" || "${args[1]}" == "--with-memory" ]]; then
+        local deep=0
+        [[ "${args[1]}" == "--with-memory" ]] && deep=1
+        if (( dry_run )); then
+            echo "[dry-run] would shred Claude Code transient state under $claude_dir."
+        else
+            echo "About to shred Claude Code transient state under $claude_dir."
+        fi
+        if (( deep )); then
+            echo "Including per-project memory/ and downloads/ (--with-memory)."
+        else
+            echo "Preserving per-project memory/ and downloads/ (pass --with-memory to also wipe)."
+        fi
         echo "Keeps: .credentials.json, settings.json, plugins/."
-        echo "If Claude Code is currently running, close it first for a clean wipe."
-        printf "Type 'yes' to confirm: "
-        local answer
-        read -r answer
-        [[ "$answer" == "yes" ]] || { echo "Aborted."; return 1; }
+        if (( ! dry_run )); then
+            echo "If Claude Code is currently running, close it first for a clean wipe."
+            printf "Type 'yes' to confirm: "
+            local answer
+            read -r answer
+            [[ "$answer" == "yes" ]] || { echo "Aborted."; return 1; }
+        fi
+
+        # Wipe everything in each project dir except memory/ (unless --with-memory).
+        if [[ -d "$claude_dir/projects" ]]; then
+            local proj entry
+            for proj in "$claude_dir"/projects/*(N/); do
+                for entry in "$proj"/*(DN); do
+                    if (( ! deep )) && [[ "${entry:t}" == "memory" ]]; then
+                        continue
+                    fi
+                    if (( dry_run )); then
+                        echo "[dry-run] $entry"
+                    else
+                        find "$entry" -type f -exec shred -u {} + 2>/dev/null
+                        rm -rf "$entry" 2>/dev/null
+                    fi
+                done
+            done
+        fi
 
         local targets=(
-            "$claude_dir/projects"
             "$claude_dir/file-history"
             "$claude_dir/session-env"
             "$claude_dir/shell-snapshots"
@@ -195,21 +238,29 @@ function claude_wipe {
             "$claude_dir/backups"
             "$claude_dir/cache"
             "$claude_dir/telemetry"
-            "$claude_dir/downloads"
             "$claude_dir/history.jsonl"
         )
+        (( deep )) && targets+=("$claude_dir/downloads")
         local t
         for t in "${targets[@]}"; do
             [[ -e "$t" ]] || continue
-            find "$t" -type f -exec shred -u {} + 2>/dev/null
-            rm -rf "$t" 2>/dev/null
+            if (( dry_run )); then
+                echo "[dry-run] $t"
+            else
+                find "$t" -type f -exec shred -u {} + 2>/dev/null
+                rm -rf "$t" 2>/dev/null
+            fi
         done
-        echo "Wiped all Claude Code transient state."
+        if (( dry_run )); then
+            echo "(dry-run — nothing was modified)"
+        else
+            echo "Wiped Claude Code transient state."
+        fi
         return 0
     fi
 
     # Single session: explicit id or most-recent by mtime.
-    local session_id="$1"
+    local session_id="${args[1]}"
     if [[ -z "$session_id" ]]; then
         session_id=$(find "$claude_dir/projects" -maxdepth 2 -name '*.jsonl' -printf '%T@ %f\n' 2>/dev/null \
             | sort -rn | head -1 | awk '{print $2}' | sed 's/\.jsonl$//')
@@ -237,10 +288,21 @@ function claude_wipe {
         echo "No files found for session $session_id." >&2
         return 1
     fi
+    if (( ! dry_run )); then
+        echo "Note: if Claude Code is actively running this session, the transcript may be recreated mid-wipe." >&2
+    fi
     local t
     for t in "${targets[@]}"; do
-        find "$t" -type f -exec shred -u {} + 2>/dev/null
-        rm -rf "$t" 2>/dev/null
+        if (( dry_run )); then
+            echo "[dry-run] $t"
+        else
+            find "$t" -type f -exec shred -u {} + 2>/dev/null
+            rm -rf "$t" 2>/dev/null
+        fi
     done
-    echo "Wiped ${#targets[@]} path(s) for session $session_id."
+    if (( dry_run )); then
+        echo "(dry-run — ${#targets[@]} path(s) listed for session $session_id)"
+    else
+        echo "Wiped ${#targets[@]} path(s) for session $session_id."
+    fi
 }
