@@ -32,6 +32,11 @@ function load_secrets {
 
 function edit_secrets {
     local secrets_file="${DOTFILES_DIR}/zsh/secrets.age"
+    # Tighten umask so the `age -d > $tmpfile` redirection creates the file
+    # 0600 from the start, with no group/world-readable window before chmod.
+    local old_umask
+    old_umask=$(umask)
+    umask 077
     # Prefer tmpfs ($XDG_RUNTIME_DIR) so plaintext never hits a journaling
     # filesystem where shred is unreliable. Fall back to the system default.
     local tmpbase="${XDG_RUNTIME_DIR:-}"
@@ -39,13 +44,13 @@ function edit_secrets {
         tmpbase="${TMPDIR:-/tmp}"
     fi
     local tmpdir
-    tmpdir=$(mktemp -d "${tmpbase}/edit_secrets.XXXXXX") || return 1
+    tmpdir=$(mktemp -d "${tmpbase}/edit_secrets.XXXXXX") || { umask "$old_umask"; return 1; }
     chmod 700 "$tmpdir"
     local tmpfile="${tmpdir}/secrets.env"
 
     # Shred every file in tmpdir on any exit — editors (vim .swp, emacs #file#,
     # backup ~ files, persistent undo) may write siblings next to $tmpfile.
-    local cleanup="find '$tmpdir' -type f -exec shred -u {} + 2>/dev/null; rm -rf '$tmpdir' 2>/dev/null"
+    local cleanup="find '$tmpdir' -type f -exec shred -u {} + 2>/dev/null; rm -rf '$tmpdir' 2>/dev/null; umask '$old_umask'"
     trap "$cleanup" EXIT HUP INT QUIT TERM
 
     if [[ -f "$secrets_file" ]]; then
