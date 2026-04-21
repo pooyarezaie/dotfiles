@@ -37,4 +37,5 @@ Open a fresh zsh (`zsh -l`) to verify `zshrc` wiring end-to-end.
 - `age` — required for secrets (`apt install age`).
 - `envsubst` (from `gettext-base`) — required by `kube_unlock` to render the kubeconfig template.
 - `kubectl` with the `oidc-login` plugin (via `krew`) — the rendered kubeconfig uses it for OIDC authentication.
+- `rclone` — used by `pwsafe_sync` to push/pull the encrypted password-safe file to a cloud remote (default `gdrive:pwsafe`, overridable via `PWSAFE_REMOTE`).
 - Oh My Zsh with the `honukai` theme and `git` plugin — assumed installed at `$HOME/.oh-my-zsh`.

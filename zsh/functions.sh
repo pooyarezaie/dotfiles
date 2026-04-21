@@ -169,6 +169,43 @@ function kube_unlock {
     echo "kubectl config rendered to $outfile; KUBECONFIG set for this session."
 }
 
+function pwsafe_sync {
+    # The .psafe3 container is already AES-256 encrypted, so the ciphertext
+    # blob is safe to hand to a cloud remote. Kept explicit push/pull/status
+    # rather than a two-way "newer wins" sync — for the password DB, a
+    # wrong-direction overwrite is a data-loss event worth a manual decision.
+    local file="${PWSAFE_FILE:-$HOME/pwsafe.psafe3}"
+    local remote="${PWSAFE_REMOTE:-gdrive:pwsafe}"
+
+    if ! command -v rclone >/dev/null; then
+        echo "rclone not installed (see https://rclone.org/install/)" >&2
+        return 1
+    fi
+
+    local cmd="${1:-status}"
+    case "$cmd" in
+        push)
+            [[ -f "$file" ]] || { echo "No local file at $file" >&2; return 1; }
+            rclone copyto -v --immutable "$file" "${remote}/${file:t}"
+            ;;
+        pull)
+            rclone copyto -v --immutable "${remote}/${file:t}" "$file"
+            ;;
+        status)
+            echo "Local  ($file):"
+            [[ -f "$file" ]] && ls -lh --time-style=long-iso "$file" || echo "  (missing)"
+            echo "Remote (${remote}/${file:t}):"
+            rclone lsl "${remote}/${file:t}" 2>/dev/null || echo "  (missing or unreachable)"
+            ;;
+        *)
+            echo "Usage: pwsafe_sync [push|pull|status]" >&2
+            echo "  PWSAFE_FILE   (default: \$HOME/pwsafe.psafe3)" >&2
+            echo "  PWSAFE_REMOTE (default: gdrive:pwsafe)" >&2
+            return 1
+            ;;
+    esac
+}
+
 function claude_wipe {
     local claude_dir="$HOME/.claude"
     if [[ ! -d "$claude_dir" ]]; then
