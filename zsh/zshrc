@@ -70,7 +70,7 @@ ZSH_THEME="honukai"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git kubectl)
+plugins=(git kubectl zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -111,6 +111,7 @@ export VISUAL=vim
 export EDITOR="$VISUAL"
 
 export GOPATH="$HOME/go"
+export GOPRIVATE=git.divar.cloud
 export PATH=$PATH:/usr/local/go/bin
 export PATH="$PATH:$GOPATH/bin"
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
