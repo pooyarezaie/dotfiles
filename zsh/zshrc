@@ -113,6 +113,7 @@ export EDITOR="$VISUAL"
 export GOPATH="$HOME/go"
 export GOPRIVATE=git.divar.cloud
 export PATH=$PATH:/usr/local/go/bin
+export PATH=$PATH:/usr/local/bin
 export PATH="$PATH:$GOPATH/bin"
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 export PATH=$HOME/.local/bin:$PATH
