@@ -343,3 +343,73 @@ function claude_wipe {
         echo "Wiped ${#targets[@]} path(s) for session $session_id."
     fi
 }
+
+function dns_add {
+    # Add the nameservers listed in a file (one IP per line, optional
+    # `nameserver ` prefix, `#` comments allowed) to the system resolver.
+    #
+    # On systemd-resolved hosts /etc/resolv.conf is a managed symlink that
+    # gets rewritten, so the servers go into a persistent drop-in under
+    # /etc/systemd/resolved.conf.d/ instead. Elsewhere, nameserver lines
+    # are prepended to /etc/resolv.conf directly.
+    local file="$1"
+    if [[ -z "$file" ]]; then
+        echo "Usage: dns_add <file>" >&2
+        return 1
+    fi
+    if [[ ! -r "$file" ]]; then
+        echo "dns_add: cannot read $file" >&2
+        return 1
+    fi
+
+    local line ip servers=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" ]] && continue
+        [[ "$line" == nameserver\ * ]] && line="${line#nameserver }"
+        ip="${line// /}"
+        if [[ ! "$ip" =~ '^([0-9]{1,3}\.){3}[0-9]{1,3}$' && ! "$ip" =~ '^[0-9A-Fa-f:]+$' ]]; then
+            echo "dns_add: skipping invalid address: $line" >&2
+            continue
+        fi
+        (( ${servers[(Ie)$ip]} )) || servers+=("$ip")
+    done < "$file"
+
+    if (( ${#servers[@]} == 0 )); then
+        echo "dns_add: no valid addresses found in $file" >&2
+        return 1
+    fi
+
+    if systemctl is-active --quiet systemd-resolved 2>/dev/null; then
+        local dropin_dir="/etc/systemd/resolved.conf.d"
+        local dropin="${dropin_dir}/internal-dns.conf"
+        sudo mkdir -p "$dropin_dir" || return 1
+        printf '# Managed by dns_add (dotfiles); source: %s\n[Resolve]\nDNS=%s\n' \
+            "$file" "${servers[*]}" | sudo tee "$dropin" >/dev/null || return 1
+        sudo systemctl restart systemd-resolved || return 1
+        echo "Wrote ${dropin} with: ${servers[*]}"
+        resolvectl status 2>/dev/null | sed -n '/^Global/,/^$/p'
+    else
+        local resolv="/etc/resolv.conf"
+        local existing
+        existing=$(cat "$resolv" 2>/dev/null)
+        local added=()
+        for ip in "${servers[@]}"; do
+            if grep -qE "^nameserver[[:space:]]+${ip//./\\.}([[:space:]]|$)" <<< "$existing"; then
+                echo "Already present: $ip"
+            else
+                added+=("$ip")
+            fi
+        done
+        if (( ${#added[@]} == 0 )); then
+            echo "Nothing to add to $resolv."
+            return 0
+        fi
+        { printf 'nameserver %s\n' "${added[@]}"; printf '%s\n' "$existing"; } \
+            | sudo tee "$resolv" >/dev/null || return 1
+        echo "Prepended to ${resolv}: ${added[*]}"
+    fi
+}
