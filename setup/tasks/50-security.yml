@@ -82,6 +82,11 @@
     - keepassxc
   when: not snap_list.stdout is search('(^|\n)' ~ item ~ '\s')
 
+- name: Remove apt KeePassXC build superseded by the snap
+  ansible.builtin.apt:
+    name: keepassxc
+    state: absent
+
 - name: GPG and secret tools
   ansible.builtin.apt:
     name:

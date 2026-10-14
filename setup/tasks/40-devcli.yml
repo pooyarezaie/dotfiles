@@ -53,10 +53,24 @@
       # the bare installer refuses to run over an existing install
       ansible.builtin.command: "{{ tmp_dir }}/aws/install {{ '--update' if aws_installed.rc == 0 else '' }}"
 
-- name: Remove misplaced glab deb (installed as i386)
+- name: Foreign architectures in dpkg
+  ansible.builtin.command: dpkg --print-foreign-architectures
+  register: foreign_arches
+  changed_when: false
+
+- name: Remove misplaced glab deb (qualified i386 — the plain name resolves to amd64)
   ansible.builtin.apt:
-    name: glab
+    name: "{{ ['glab'] + (['glab:i386'] if 'i386' in foreign_arches.stdout else []) }}"
     state: absent
+
+- name: Count remaining i386 packages
+  ansible.builtin.shell: dpkg-query -W -f='${binary:Package}\n' | grep ':i386' || true
+  register: i386_left
+  changed_when: false
+
+- name: Drop the unused i386 foreign architecture
+  ansible.builtin.command: dpkg --remove-architecture i386
+  when: "'i386' in foreign_arches.stdout and i386_left.stdout | trim | length == 0"
 
 - name: Installed snaps
   ansible.builtin.command: snap list

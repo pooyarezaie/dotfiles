@@ -1,6 +1,10 @@
 ---
 # Runs after every category (tag: always).
 
+- name: Clean up orphaned packages
+  ansible.builtin.apt:
+    autoremove: true
+
 - name: Post-install notes
   ansible.builtin.debug:
     msg:

@@ -19,6 +19,11 @@
     name: spotify-client
     state: absent
 
+- name: Remove apt VLC build superseded by the snap
+  ansible.builtin.apt:
+    name: vlc
+    state: absent
+
 - name: Remove legacy Spotify repo
   ansible.builtin.file:
     path: /etc/apt/sources.list.d/spotify.list
