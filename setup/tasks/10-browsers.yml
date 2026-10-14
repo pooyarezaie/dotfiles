@@ -1,0 +1,33 @@
+---
+# Google Chrome (official apt repo — no snap exists) and Firefox (snap).
+
+- name: Chrome signing key
+  ansible.builtin.get_url:
+    url: https://dl.google.com/linux/linux_signing_key.pub
+    dest: "{{ keyring_dir }}/google-chrome.asc"
+    mode: "0644"
+
+- name: Chrome apt repo
+  ansible.builtin.deb822_repository:
+    name: google-chrome
+    types: [deb]
+    uris: https://dl.google.com/linux/chrome-stable/deb/
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/google-chrome.asc"
+
+- name: Chrome
+  ansible.builtin.apt:
+    name: google-chrome-stable
+
+- name: Installed snaps
+  ansible.builtin.command: snap list
+  register: snap_list
+  changed_when: false
+
+- name: Firefox
+  ansible.builtin.command: snap install {{ item }}
+  loop:
+    - firefox
+  when: not snap_list.stdout is search('(^|\n)' ~ item ~ '\s')

@@ -1,0 +1,26 @@
+---
+# Versions pinned here are the ones with no safe "latest" endpoint or with
+# installer semantics that make blind re-runs fail; bump a version to upgrade.
+# Everything else resolves to latest at run time (kubectl via dl.k8s.io,
+# Go via go.dev/dl) or rides its apt/snap repo.
+
+awscli_version: "2.35.15"
+v2ray_version: "5.53.0"
+gcm_version: "3.0.1"
+nvm_version: "0.40.8"
+
+# @latest by design; to upgrade a tool, delete ~/go/bin/<name> and re-run.
+go_tools:
+  - golang.org/x/tools/gopls@latest
+  - github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+  - github.com/ktr0731/evans@latest
+
+krew_plugins:
+  - oidc-login
+  - sniff
+
+home: "{{ ansible_env.HOME }}"
+user: "{{ ansible_user_id }}"
+repo_root: "{{ playbook_dir | dirname }}"
+keyring_dir: /etc/apt/keyrings
+tmp_dir: /tmp/dotfiles-setup

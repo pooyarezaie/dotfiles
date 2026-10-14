@@ -1,0 +1,121 @@
+---
+# NetBird, Wireshark, age, YubiKey stack, password managers, GPG tools and
+# Git Credential Manager.
+
+- name: NetBird signing key (vendored in the repo — no stable key URL published)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/netbird.asc"
+    dest: "{{ keyring_dir }}/netbird.asc"
+    mode: "0644"
+
+- name: Remove legacy netbird list (replaced by the deb822 repo below)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/netbird.list
+    state: absent
+
+- name: NetBird apt repo
+  ansible.builtin.deb822_repository:
+    name: netbird
+    types: [deb]
+    uris: https://pkgs.netbird.io/debian
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/netbird.asc"
+
+- name: NetBird and its UI
+  ansible.builtin.apt:
+    name:
+      - netbird
+      - netbird-ui
+    update_cache: true
+
+- name: Allow non-root packet capture
+  # must precede the wireshark install, which consumes this answer
+  ansible.builtin.debconf:
+    name: wireshark-common
+    question: wireshark-common/install-setuid
+    vtype: boolean
+    value: "true"
+
+- name: Wireshark and tshark
+  ansible.builtin.apt:
+    name:
+      - wireshark
+      - tshark
+
+- name: Wireshark group membership
+  ansible.builtin.user:
+    name: "{{ user }}"
+    groups: wireshark
+    append: true
+
+- name: age
+  ansible.builtin.apt:
+    name: age
+
+- name: YubiKey tools
+  ansible.builtin.apt:
+    name:
+      - yubikey-manager
+      - python3-ykman
+      - oathtool
+
+- name: pcscd (smartcard daemon YubiKeys talk to)
+  ansible.builtin.systemd:
+    name: pcscd
+    enabled: true
+    state: started
+
+- name: Password Safe
+  ansible.builtin.apt:
+    name: passwordsafe
+
+- name: Installed snaps
+  ansible.builtin.command: snap list
+  register: snap_list
+  changed_when: false
+
+- name: KeePassXC (official snap)
+  ansible.builtin.command: snap install {{ item }}
+  loop:
+    - keepassxc
+  when: not snap_list.stdout is search('(^|\n)' ~ item ~ '\s')
+
+- name: GPG and secret tools
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - seahorse
+      - libsecret-tools
+
+- name: Installed GCM version
+  ansible.builtin.command: git-credential-manager --version
+  register: gcm_installed
+  failed_when: false
+  changed_when: false
+
+- name: Install or upgrade Git Credential Manager
+  when: gcm_installed is failed or gcm_version not in gcm_installed.stdout
+  block:
+    - name: Download GCM deb
+      ansible.builtin.get_url:
+        url: https://github.com/git-ecosystem/git-credential-manager/releases/download/v{{ gcm_version }}/gcm-linux-x64-{{ gcm_version }}.deb
+        dest: "{{ tmp_dir }}/gcm-{{ gcm_version }}.deb"
+        mode: "0644"
+
+    - name: Install GCM deb
+      ansible.builtin.apt:
+        deb: "{{ tmp_dir }}/gcm-{{ gcm_version }}.deb"
+
+- name: Current git credential helper
+  become: false
+  ansible.builtin.command: git config --global --get credential.helper
+  register: git_helper
+  failed_when: false
+  changed_when: false
+
+- name: Use GCM as the git credential helper
+  become: false
+  ansible.builtin.command: git config --global credential.helper /usr/local/bin/git-credential-manager
+  when: git_helper is failed or git_helper.stdout != '/usr/local/bin/git-credential-manager'

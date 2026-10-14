@@ -1,0 +1,15 @@
+---
+# Runs after every category (tag: always).
+
+- name: Post-install notes
+  ansible.builtin.debug:
+    msg:
+      - "Log out and back in for group memberships and the zsh login shell."
+      - "Manual steps (details in README.md, 'After a fresh install'):"
+      - "  - restore ~/.ssh"
+      - "  - restore zsh/secrets.age, then run load_secrets"
+      - "  - restore /usr/local/etc/v2ray/config.json"
+      - "  - app logins: Chrome, ChatGPT, Spotify, VS Code, ngrok authtoken, netbird up"
+      - "  - load_secrets && kube_unlock for cluster access"
+      - "  - pwsafe file and rclone config"
+      - "Updates not automated: go tools (delete ~/go/bin/<name>, re-run), omz update, pnpm."

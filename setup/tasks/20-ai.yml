@@ -1,0 +1,55 @@
+---
+# VS Code and ChatGPT desktop (official apt repos — no snaps), plus the
+# Claude Code and Codex CLIs (official standalone installers, per-user).
+
+- name: VS Code signing key
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: "{{ keyring_dir }}/vscode.asc"
+    mode: "0644"
+
+- name: VS Code apt repo
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types: [deb]
+    uris: https://packages.microsoft.com/repos/code
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/vscode.asc"
+
+- name: VS Code
+  ansible.builtin.apt:
+    name: code
+
+- name: ChatGPT signing key (vendored in the repo — OpenAI publishes no stable key URL)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/chatgpt.asc"
+    dest: "{{ keyring_dir }}/chatgpt.asc"
+    mode: "0644"
+
+- name: ChatGPT apt repo
+  ansible.builtin.deb822_repository:
+    name: chatgpt
+    types: [deb]
+    uris: https://persistent.oaistatic.com/codex-app-prod/linux/deb
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/chatgpt.asc"
+
+- name: ChatGPT desktop
+  ansible.builtin.apt:
+    name: chatgpt
+
+- name: Claude Code
+  become: false
+  ansible.builtin.shell: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: "{{ home }}/.local/bin/claude"
+
+- name: Codex CLI
+  become: false
+  ansible.builtin.shell: curl -fsSL https://chatgpt.com/codex/install.sh | sh
+  args:
+    creates: "{{ home }}/.local/bin/codex"

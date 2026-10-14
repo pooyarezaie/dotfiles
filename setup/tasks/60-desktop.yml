@@ -1,0 +1,39 @@
+---
+# Media and desktop utilities. Spotify and VLC are official snaps; ffmpeg
+# and p7zip stay on apt (their snaps are community-built).
+
+- name: Installed snaps
+  ansible.builtin.command: snap list
+  register: snap_list
+  changed_when: false
+
+- name: Spotify and VLC snaps
+  ansible.builtin.command: snap install {{ item }}
+  loop:
+    - spotify
+    - vlc
+  when: not snap_list.stdout is search('(^|\n)' ~ item ~ '\s')
+
+- name: Remove apt Spotify build superseded by the snap
+  ansible.builtin.apt:
+    name: spotify-client
+    state: absent
+
+- name: Remove legacy Spotify repo
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/spotify.list
+    state: absent
+
+- name: ffmpeg and 7zip
+  ansible.builtin.apt:
+    name:
+      - ffmpeg
+      - p7zip-full
+
+- name: GNOME extras
+  ansible.builtin.apt:
+    name:
+      - gnome-system-monitor
+      - dconf-cli
+      - dconf-editor
+      - gnome-shell-extension-manager

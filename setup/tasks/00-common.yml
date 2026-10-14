@@ -1,0 +1,41 @@
+---
+# Runs before every category (tag: always).
+
+- name: Require the repo at the path zsh/zshrc hardcodes
+  ansible.builtin.assert:
+    that: playbook_dir == home ~ '/workspace/github.com/pooyarezaie/dotfiles'
+    fail_msg: >-
+      zsh/zshrc sources functions.sh from an absolute path, so the repo must
+      be cloned to ~/workspace/github.com/pooyarezaie/dotfiles.
+
+- name: Require x86_64 (binary downloads assume amd64)
+  ansible.builtin.assert:
+    that: ansible_architecture == 'x86_64'
+    fail_msg: This playbook only handles x86_64.
+
+- name: Scratch dir for downloads
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Apt keyring dir
+  ansible.builtin.file:
+    path: "{{ keyring_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Base packages (unzip/xz-utils for the unarchive module, gettext-base for kube_unlock's envsubst)
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gettext-base
+      - git
+      - gnupg
+      - unzip
+      - vim
+      - xz-utils
+      - zip
+      - zsh
+      - python3-debian  # required by deb822_repository, before any repo task

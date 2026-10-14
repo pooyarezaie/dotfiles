@@ -1,0 +1,102 @@
+---
+# zsh environment: dotfile symlinks, Oh My Zsh + honukai + autosuggestions,
+# zsh login shell, nvm + Node LTS, pnpm. Everything here touches $HOME and
+# runs as the user (become: false) except the login-shell change.
+
+- name: Look at existing dotfiles
+  become: false
+  ansible.builtin.stat:
+    path: "{{ home }}/{{ item.dest }}"
+    follow: false
+  loop:
+    - { dest: .zshrc, src: zsh/zshrc }
+    - { dest: .vimrc, src: vim/vimrc }
+  loop_control:
+    label: "{{ item.dest }}"
+  register: dotfile_stat
+
+- name: Back up real files before linking over them
+  become: false
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ home }}/{{ item.item.dest }}"
+    dest: "{{ home }}/{{ item.item.dest }}.pre-setup"
+    mode: preserve
+  loop: "{{ dotfile_stat.results }}"
+  loop_control:
+    label: "{{ item.item.dest }}"
+  when: item.stat.exists and not item.stat.stat.islnk
+
+- name: Link dotfiles into the repo
+  become: false
+  ansible.builtin.file:
+    src: "{{ repo_root }}/{{ item.item.src }}"
+    dest: "{{ home }}/{{ item.item.dest }}"
+    state: link
+    force: true
+  loop: "{{ dotfile_stat.results }}"
+  loop_control:
+    label: "{{ item.item.dest }}"
+
+- name: Oh My Zsh
+  # after the symlinks so --keep-zshrc preserves the repo copy
+  become: false
+  ansible.builtin.shell: >-
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    "" --unattended --keep-zshrc
+  args:
+    creates: "{{ home }}/.oh-my-zsh"
+
+- name: honukai theme (not bundled with Oh My Zsh; vendored in this repo)
+  become: false
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/zsh/oh-my-zsh/honukai.zsh-theme"
+    dest: "{{ home }}/.oh-my-zsh/custom/themes/honukai.zsh-theme"
+    mode: "0644"
+
+- name: zsh-autosuggestions plugin
+  # clone only, so re-runs stay fast; update with git pull when wanted
+  become: false
+  ansible.builtin.git:
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+    dest: "{{ home }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+    update: false
+
+- name: zsh login shell
+  ansible.builtin.user:
+    name: "{{ user }}"
+    shell: /usr/bin/zsh
+
+- name: nvm
+  become: false
+  ansible.builtin.shell: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v{{ nvm_version }}/install.sh | bash
+  args:
+    creates: "{{ home }}/.nvm"
+
+- name: Node LTS and default alias
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="{{ home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    nvm install --lts
+    nvm alias default 'lts/*'
+  args:
+    creates: "{{ home }}/.nvm/alias/default"
+
+- name: pnpm present?
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="{{ home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    command -v pnpm
+  register: pnpm_check
+  failed_when: false
+  changed_when: false
+
+- name: pnpm
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="{{ home }}/.nvm"
+    . "$NVM_DIR/nvm.sh"
+    npm install -g pnpm
+  when: pnpm_check.rc != 0

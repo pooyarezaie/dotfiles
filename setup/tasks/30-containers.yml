@@ -1,0 +1,112 @@
+---
+# Docker Engine (+ docker-sbx sandbox CLI), kubectl, krew and its plugins,
+# and Helm. Community snaps of kubectl/Helm lag behind, so these all use the
+# vendors' official channels.
+
+- name: Docker signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: "{{ keyring_dir }}/docker.asc"
+    mode: "0644"
+
+- name: Docker apt repo
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/ubuntu
+    suites: ["{{ ansible_distribution_release }}"]
+    components: [stable]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/docker.asc"
+
+- name: Docker Engine, plugins and sbx CLI
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+      - docker-sbx
+
+- name: Docker group membership
+  ansible.builtin.user:
+    name: "{{ user }}"
+    groups: docker
+    append: true
+
+- name: Docker service
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Latest stable kubectl release
+  ansible.builtin.command: curl -fsSL https://dl.k8s.io/release/stable.txt
+  register: kubectl_stable
+  changed_when: false
+
+- name: Installed kubectl version
+  ansible.builtin.command: kubectl version --client
+  register: kubectl_current
+  failed_when: false
+  changed_when: false
+
+- name: kubectl binary
+  ansible.builtin.get_url:
+    url: https://dl.k8s.io/release/{{ kubectl_stable.stdout }}/bin/linux/amd64/kubectl
+    dest: /usr/local/bin/kubectl
+    mode: "0755"
+    force: true
+  when: kubectl_current is failed or kubectl_stable.stdout not in kubectl_current.stdout
+
+- name: krew
+  become: false
+  ansible.builtin.shell: |
+    set -e
+    tmp="$(mktemp -d)"
+    cd "$tmp"
+    curl -fsSLO https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz
+    tar zxvf krew-linux_amd64.tar.gz
+    ./krew-linux_amd64 install krew
+  args:
+    creates: "{{ home }}/.krew/bin/kubectl-krew"
+
+- name: Installed krew plugins
+  become: false
+  ansible.builtin.command: "{{ home }}/.krew/bin/kubectl-krew list"
+  register: krew_list
+  failed_when: false
+  changed_when: false
+
+- name: krew plugins (krew errors on already-installed plugins, so install only missing ones)
+  become: false
+  ansible.builtin.command: "{{ home }}/.krew/bin/kubectl-krew install {{ item }}"
+  loop: "{{ krew_plugins }}"
+  when: krew_list is failed or item not in krew_list.stdout
+
+- name: Remove legacy Helm apt list (replaced by the deb822 repo below)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/helm-stable-debian.list
+    state: absent
+
+- name: Helm signing key
+  ansible.builtin.get_url:
+    url: https://packages.buildkite.com/helm-linux/helm-debian/gpgkey
+    dest: "{{ keyring_dir }}/helm.asc"
+    mode: "0644"
+
+- name: Helm apt repo
+  ansible.builtin.deb822_repository:
+    name: helm
+    types: [deb]
+    uris: https://packages.buildkite.com/helm-linux/helm-debian/any
+    suites: [any]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/helm.asc"
+
+- name: Helm
+  ansible.builtin.apt:
+    name: helm
+    update_cache: true

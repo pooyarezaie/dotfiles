@@ -1,0 +1,61 @@
+---
+# Workstation setup for a fresh Ubuntu 24.04 install. Run via setup/bootstrap.sh
+# or directly:
+#
+#   ansible-playbook setup/playbook.yml --ask-become-pass [--tags <category>]
+#
+# Categories: browsers ai containers devcli security desktop shell
+# (00-common and 90-summary always run.) Idempotent: a second full run
+# reports changed=0.
+#
+# Built with ansible.builtin modules only (Ubuntu's ansible-core has no
+# collections), so snap/gem go through command with explicit guards.
+- name: Set up workstation
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars_files:
+    - vars/main.yml
+  module_defaults:
+    apt:
+      cache_valid_time: 3600
+
+  pre_tasks:
+    - name: Common prerequisites
+      ansible.builtin.import_tasks: tasks/00-common.yml
+      tags: [always]
+
+  tasks:
+    - name: Browsers
+      ansible.builtin.import_tasks: tasks/10-browsers.yml
+      tags: [browsers]
+
+    - name: AI tools and editors
+      ansible.builtin.import_tasks: tasks/20-ai.yml
+      tags: [ai]
+
+    - name: Containers and Kubernetes
+      ansible.builtin.import_tasks: tasks/30-containers.yml
+      tags: [containers]
+
+    - name: Dev CLI and cloud
+      ansible.builtin.import_tasks: tasks/40-devcli.yml
+      tags: [devcli]
+
+    - name: Security and secrets
+      ansible.builtin.import_tasks: tasks/50-security.yml
+      tags: [security]
+
+    - name: Desktop apps
+      ansible.builtin.import_tasks: tasks/60-desktop.yml
+      tags: [desktop]
+
+    - name: Shell and language environment
+      ansible.builtin.import_tasks: tasks/70-shell.yml
+      tags: [shell]
+
+  post_tasks:
+    - name: Summary
+      ansible.builtin.import_tasks: tasks/90-summary.yml
+      tags: [always]

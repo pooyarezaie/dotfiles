@@ -1,0 +1,154 @@
+---
+# ngrok, AWS CLI, glab, Go + go-installed tools, v2ray, and the archive/
+# package odds and ends (network utils, rclone, ruby, python).
+
+- name: Remove legacy unsigned ngrok list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/ngrok.list
+    state: absent
+
+- name: ngrok signing key
+  ansible.builtin.get_url:
+    url: https://ngrok-agent.s3.amazonaws.com/ngrok.asc
+    dest: "{{ keyring_dir }}/ngrok.asc"
+    mode: "0644"
+
+- name: ngrok apt repo
+  ansible.builtin.deb822_repository:
+    name: ngrok
+    types: [deb]
+    uris: https://ngrok-agent.s3.amazonaws.com
+    suites: [bookworm]
+    components: [main]
+    architectures: [amd64]
+    signed_by: "{{ keyring_dir }}/ngrok.asc"
+
+- name: ngrok
+  ansible.builtin.apt:
+    name: ngrok
+    update_cache: true
+
+- name: Installed AWS CLI version
+  ansible.builtin.command: aws --version
+  register: aws_installed
+  failed_when: false
+  changed_when: false
+
+- name: Install or upgrade AWS CLI v2
+  when: aws_installed is failed or awscli_version not in aws_installed.stdout
+  block:
+    - name: Download AWS CLI installer
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64-{{ awscli_version }}.zip
+        dest: "{{ tmp_dir }}/awscliv2.zip"
+        mode: "0644"
+
+    - name: Unpack AWS CLI installer
+      ansible.builtin.unarchive:
+        src: "{{ tmp_dir }}/awscliv2.zip"
+        dest: "{{ tmp_dir }}"
+        remote_src: true
+
+    - name: Run AWS CLI installer
+      # the bare installer refuses to run over an existing install
+      ansible.builtin.command: "{{ tmp_dir }}/aws/install {{ '--update' if aws_installed.rc == 0 else '' }}"
+
+- name: Remove misplaced glab deb (installed as i386)
+  ansible.builtin.apt:
+    name: glab
+    state: absent
+
+- name: Installed snaps
+  ansible.builtin.command: snap list
+  register: snap_list
+  changed_when: false
+
+- name: glab (official GitLab snap)
+  ansible.builtin.command: snap install {{ item }}
+  loop:
+    - glab
+  when: not snap_list.stdout is search('(^|\n)' ~ item ~ '\s')
+
+- name: Latest stable Go release
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - https://go.dev/dl/?mode=json
+  register: go_releases
+  changed_when: false
+
+- name: Resolve Go version and checksum
+  ansible.builtin.set_fact:
+    go_version: "{{ (go_releases.stdout | from_json | first).version }}"
+    go_sha256: "{{ (go_releases.stdout | from_json | first).files
+                    | selectattr('os', 'equalto', 'linux')
+                    | selectattr('arch', 'equalto', 'amd64')
+                    | map(attribute='sha256') | first }}"
+
+- name: Installed Go version
+  ansible.builtin.command: cat /usr/local/go/VERSION
+  register: go_installed
+  failed_when: false
+  changed_when: false
+
+- name: Install or upgrade Go
+  # remove the old tree first: unarchive merges, which would keep stale files
+  when: go_installed is failed or go_version not in go_installed.stdout
+  block:
+    - name: Remove previous Go tree
+      ansible.builtin.file:
+        path: /usr/local/go
+        state: absent
+
+    - name: Download Go tarball
+      ansible.builtin.get_url:
+        url: https://go.dev/dl/{{ go_version }}.linux-amd64.tar.gz
+        dest: "{{ tmp_dir }}/{{ go_version }}.linux-amd64.tar.gz"
+        checksum: "sha256:{{ go_sha256 }}"
+
+    - name: Unpack Go into /usr/local
+      ansible.builtin.unarchive:
+        src: "{{ tmp_dir }}/{{ go_version }}.linux-amd64.tar.gz"
+        dest: /usr/local
+        remote_src: true
+
+- name: go install tools (per-user; to upgrade, delete the binary and re-run)
+  become: false
+  ansible.builtin.shell: /usr/local/go/bin/go install {{ item }}
+  environment:
+    GOPATH: "{{ home }}/go"
+  loop: "{{ go_tools }}"
+  args:
+    creates: "{{ home }}/go/bin/{{ item.split('@')[0].split('/')[-1] }}"
+
+- name: Installed v2ray version
+  ansible.builtin.command: v2ray version
+  register: v2ray_installed
+  failed_when: false
+  changed_when: false
+
+- name: v2ray via the official fhs-install script (dat files and units included)
+  # the service stays disabled on purpose: config.json holds server
+  # credentials and is restored manually
+  ansible.builtin.shell: >-
+    curl -fsSL https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh
+    | bash -s -- --version v{{ v2ray_version }}
+  when: v2ray_installed is failed or v2ray_version not in v2ray_installed.stdout
+
+- name: Network utilities, rclone, ruby, python
+  ansible.builtin.apt:
+    name:
+      - net-tools
+      - telnet
+      - whois
+      - rclone
+      - ruby-full
+      - python3-pip
+      - python3-venv
+      - python3-ipython
+
+- name: bundler
+  ansible.builtin.command: gem install bundler --bindir /usr/local/bin
+  args:
+    creates: /usr/local/bin/bundle
