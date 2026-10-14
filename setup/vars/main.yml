@@ -19,8 +19,11 @@ krew_plugins:
   - oidc-login
   - sniff
 
-home: "{{ ansible_env.HOME }}"
-user: "{{ ansible_user_id }}"
+# NOT ansible_env.HOME / ansible_user_id: facts are gathered under become,
+# so those resolve to root's home and root itself. The lookup runs as the
+# user who invoked ansible-playbook, which is who we're setting up.
+home: "{{ lookup('env', 'HOME') }}"
+user: "{{ lookup('env', 'USER') | default(home | basename, true) }}"
 repo_root: "{{ playbook_dir | dirname }}"
 keyring_dir: /etc/apt/keyrings
 tmp_dir: /tmp/dotfiles-setup
