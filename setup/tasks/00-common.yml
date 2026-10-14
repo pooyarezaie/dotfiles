@@ -3,7 +3,7 @@
 
 - name: Require the repo at the path zsh/zshrc hardcodes
   ansible.builtin.assert:
-    that: playbook_dir == home ~ '/workspace/github.com/pooyarezaie/dotfiles'
+    that: repo_root == home ~ '/workspace/github.com/pooyarezaie/dotfiles'
     fail_msg: >-
       zsh/zshrc sources functions.sh from an absolute path, so the repo must
       be cloned to ~/workspace/github.com/pooyarezaie/dotfiles.
