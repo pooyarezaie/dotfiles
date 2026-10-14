@@ -25,7 +25,7 @@
   loop: "{{ dotfile_stat.results }}"
   loop_control:
     label: "{{ item.item.dest }}"
-  when: item.stat.exists and not item.stat.stat.islnk
+  when: item.stat.exists and not item.stat.islnk
 
 - name: Link dotfiles into the repo
   become: false
