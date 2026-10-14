@@ -20,8 +20,24 @@
     state: absent
 
 - name: Remove apt VLC build superseded by the snap
+  # vlc is a metapackage (the binary is in vlc-bin) and the plugins came in
+  # as recommends that apt marks manual, so a bare remove + autoremove
+  # leaves the apt binary shadowing the snap
   ansible.builtin.apt:
-    name: vlc
+    name:
+      - vlc
+      - vlc-bin
+      - vlc-data
+      - vlc-l10n
+      - vlc-plugin-access-extra
+      - vlc-plugin-base
+      - vlc-plugin-notify
+      - vlc-plugin-qt
+      - vlc-plugin-samba
+      - vlc-plugin-skins2
+      - vlc-plugin-video-output
+      - vlc-plugin-video-splitter
+      - vlc-plugin-visualization
     state: absent
 
 - name: Remove legacy Spotify repo
