@@ -42,14 +42,24 @@
   ansible.builtin.apt:
     name: chatgpt
 
+- name: Claude Code and Codex installers (vendored — no piping the internet to a shell)
+  become: false
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/{{ item }}"
+    dest: "{{ user_scratch }}/{{ item }}"
+    mode: "0700"
+  loop:
+    - claude-install.sh
+    - codex-install.sh
+
 - name: Claude Code
   become: false
-  ansible.builtin.shell: curl -fsSL https://claude.ai/install.sh | bash
+  ansible.builtin.command: "{{ user_scratch }}/claude-install.sh"
   args:
     creates: "{{ home }}/.local/bin/claude"
 
 - name: Codex CLI
   become: false
-  ansible.builtin.shell: curl -fsSL https://chatgpt.com/codex/install.sh | sh
+  ansible.builtin.command: "{{ user_scratch }}/codex-install.sh"
   args:
     creates: "{{ home }}/.local/bin/codex"

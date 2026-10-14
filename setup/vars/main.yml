@@ -27,3 +27,6 @@ user: "{{ lookup('env', 'USER') | default(home | basename, true) }}"
 repo_root: "{{ playbook_dir | dirname }}"
 keyring_dir: /etc/apt/keyrings
 tmp_dir: /tmp/dotfiles-setup
+# per-user scratch (tmp_dir is root-owned) for installer scripts that must
+# not run as root
+user_scratch: "{{ home }}/.cache/dotfiles-setup"

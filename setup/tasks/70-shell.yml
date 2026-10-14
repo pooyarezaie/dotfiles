@@ -38,12 +38,18 @@
   loop_control:
     label: "{{ item.item.dest }}"
 
-- name: Oh My Zsh
-  # after the symlinks so --keep-zshrc preserves the repo copy
+- name: Oh My Zsh installer (vendored)
   become: false
-  ansible.builtin.shell: >-
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-    "" --unattended --keep-zshrc
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/ohmyzsh-install.sh"
+    dest: "{{ user_scratch }}/ohmyzsh-install.sh"
+    mode: "0700"
+
+- name: Oh My Zsh
+  # after the symlinks so --keep-zshrc preserves the repo copy; sourced via
+  # sh -c to give the installer the argument layout its piped form expects
+  become: false
+  ansible.builtin.shell: sh -c '. {{ user_scratch }}/ohmyzsh-install.sh' ohmyzsh --unattended --keep-zshrc
   args:
     creates: "{{ home }}/.oh-my-zsh"
 

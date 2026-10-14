@@ -142,13 +142,28 @@
   failed_when: false
   changed_when: false
 
-- name: v2ray via the official fhs-install script (dat files and units included)
+- name: v2ray installer (vendored — this script runs as root, so it is pinned here)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/fhs-install-v2ray.sh"
+    dest: "{{ tmp_dir }}/fhs-install-v2ray.sh"
+    mode: "0700"
+
+- name: v2ray via the fhs-install script (dat files and units included)
   # the service stays disabled on purpose: config.json holds server
   # credentials and is restored manually
-  ansible.builtin.shell: >-
-    curl -fsSL https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh
-    | bash -s -- --version v{{ v2ray_version }}
+  ansible.builtin.command: "{{ tmp_dir }}/fhs-install-v2ray.sh --version v{{ v2ray_version }}"
   when: v2ray_installed is failed or v2ray_version not in v2ray_installed.stdout
+
+- name: v2ray config state
+  ansible.builtin.stat:
+    path: /usr/local/etc/v2ray/config.json
+  register: v2ray_config
+
+- name: Keep the v2ray config private (it holds server credentials)
+  ansible.builtin.file:
+    path: /usr/local/etc/v2ray/config.json
+    mode: "0600"
+  when: v2ray_config.stat.exists
 
 - name: Network utilities, rclone, ruby, python
   ansible.builtin.apt:

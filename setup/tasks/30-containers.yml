@@ -58,6 +58,7 @@
     dest: /usr/local/bin/kubectl
     mode: "0755"
     force: true
+    checksum: "sha256:https://dl.k8s.io/release/{{ kubectl_stable.stdout }}/bin/linux/amd64/kubectl.sha256"
   when: kubectl_current is failed or kubectl_stable.stdout not in kubectl_current.stdout
 
 - name: krew

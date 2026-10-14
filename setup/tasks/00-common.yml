@@ -19,6 +19,13 @@
     state: directory
     mode: "0755"
 
+- name: User scratch dir (for installer scripts that run as the user)
+  become: false
+  ansible.builtin.file:
+    path: "{{ user_scratch }}"
+    state: directory
+    mode: "0700"
+
 - name: Apt keyring dir
   ansible.builtin.file:
     path: "{{ keyring_dir }}"
