@@ -2,21 +2,35 @@
 
 Personal tools for setting up and maintaining a secure workstation.
 
-## Setup
+## Fresh machine
 
-1. Symlink `~/.zshrc` to the version-controlled copy:
+Clone the repo to the exact path `zsh/zshrc` hardcodes, then run the bootstrap script:
 
-   ```bash
-   ln -sf ~/workspace/github.com/pooyarezaie/dotfiles/zsh/zshrc ~/.zshrc
-   ```
+```bash
+git clone https://github.com/pooyarezaie/dotfiles.git ~/workspace/github.com/pooyarezaie/dotfiles
+cd ~/workspace/github.com/pooyarezaie/dotfiles
+./setup/bootstrap.sh
+```
 
-2. Install [age](https://github.com/FiloSottile/age) for secret management:
+`bootstrap.sh` installs Ansible and runs the playbook in [`setup/`](setup/), which installs everything: apps (official apt repos, snaps, and release binaries), the shell environment (Oh My Zsh with the honukai theme and plugins, nvm with Node LTS, pnpm), and the `~/.zshrc` / `~/.vimrc` symlinks. It is idempotent — re-running converges without changes. Categories can be run individually:
 
-   ```bash
-   sudo apt install age
-   ```
+```bash
+./setup/bootstrap.sh --tags containers   # browsers ai containers devcli security desktop shell
+./setup/bootstrap.sh --check --diff      # dry run
+```
 
-3. Set up your encrypted secrets (see [Secrets Management](#secrets-management) below).
+Secrets are deliberately not automated; see [Secrets Management](#secrets-management) below and [`DESIGN.md`](DESIGN.md).
+
+### After a fresh install
+
+- Log out and back in (group memberships, zsh login shell).
+- Restore `~/.ssh` from backup.
+- Restore `zsh/secrets.age` from backup and run `load_secrets`.
+- Restore `/usr/local/etc/v2ray/config.json` (contains server credentials; the v2ray service is left disabled).
+- App logins: Chrome, ChatGPT, Spotify, VS Code (settings sync), `ngrok config add-authtoken`, `netbird up`.
+- Cluster access: `load_secrets && kube_unlock`.
+- Password safe: restore the `.psafe3` file and run `rclone config`.
+- Optional: `sudo pro attach`; switch origin to SSH now that keys exist (`git remote set-url origin git@github.com:pooyarezaie/dotfiles.git`).
 
 ## Functions
 

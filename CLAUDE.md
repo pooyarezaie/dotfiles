@@ -13,6 +13,8 @@ Personal dotfiles: a zsh config plus a small library of shell functions for work
 - `zsh/secrets.env.example` — template of exported environment variables used by other functions. Copy to `secrets.env`, fill in, then encrypt to `secrets.age` with `age -p`.
 - `zsh/secrets.age` — age-encrypted secrets file. Gitignored (`*.age` in `.gitignore`). Not checked in, despite existing locally.
 - `kube/config.template` — kubeconfig with `${VAR}` placeholders. `kube_unlock` renders it into `$XDG_RUNTIME_DIR/kube/config` and exports `KUBECONFIG` for the current shell only.
+- `setup/` — workstation setup for a fresh Ubuntu 24.04 machine: `bootstrap.sh` (entrypoint: installs ansible-core, runs the playbook) plus `playbook.yml`, `tasks/` (one numbered file per tagged category), `vars/main.yml` (pinned versions), and `files/` (vendored apt repo signing keys). Uses builtin Ansible modules only (Ubuntu's ansible-core ships no collections), so snap/gem go through `command` with explicit guards. Third-party repos all follow the same pattern: armored key in `/etc/apt/keyrings/` + `deb822_repository`.
+- `zsh/oh-my-zsh/honukai.zsh-theme` — honukai theme vendored here because it is not bundled with Oh My Zsh; the playbook copies it to `~/.oh-my-zsh/custom/themes/`.
 - `DESIGN.md` — rationale for the security-relevant choices (threat model, why parse-don't-eval, why tmpfs, why template+envsubst instead of a symlinked kubeconfig). Read this before changing anything in `load_secrets` / `edit_secrets` / `kube_unlock`.
 
 ## How the pieces connect
@@ -32,10 +34,12 @@ source ~/workspace/github.com/pooyarezaie/dotfiles/zsh/functions.sh
 
 Open a fresh zsh (`zsh -l`) to verify `zshrc` wiring end-to-end.
 
+The setup playbook has no test runner either: exercise it via `./setup/bootstrap.sh` (`--syntax-check`, `--list-tasks`, `--tags <category>`, `--check --diff`). The idempotency bar is that a second full run reports `changed=0`.
+
 ## External dependencies
 
 - `age` — required for secrets (`apt install age`).
 - `envsubst` (from `gettext-base`) — required by `kube_unlock` to render the kubeconfig template.
 - `kubectl` with the `oidc-login` plugin (via `krew`) — the rendered kubeconfig uses it for OIDC authentication.
 - `rclone` — used by `pwsafe_sync` to push/pull the encrypted password-safe file to a cloud remote (default `gdrive:pwsafe`, overridable via `PWSAFE_REMOTE`).
-- Oh My Zsh with the `honukai` theme and `git` plugin — assumed installed at `$HOME/.oh-my-zsh`.
+- Oh My Zsh with the `honukai` theme and `git` plugin — lives at `$HOME/.oh-my-zsh`; installed (with the vendored honukai theme and `zsh-autosuggestions`) by the setup playbook.
