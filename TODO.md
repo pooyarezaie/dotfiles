@@ -32,8 +32,10 @@ Results from 2026-10-15 in brackets where already run:
 - [x] `mokutil --sb-state; sysctl kernel.kptr_restrict
   kernel.unprivileged_bpf_disabled` — kernel values good (`1` / `2`), but
   **Secure Boot is disabled** — see below.
-- [ ] `sudo usg audit --level 2` — reason: usg is installed; this gives the
-  full CIS report the spot-checks above only sample.
+- [ ] `sudo usg audit cis_level2_workstation` — reason: usg is installed; this
+  gives the full CIS report the spot-checks above only sample. (`cis_level1_
+  workstation` is the lighter profile; `usg fix` exists but changes system
+  state — read the audit report before fixing anything.)
 
 ## Additional finding from the privileged checks
 
