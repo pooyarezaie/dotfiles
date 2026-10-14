@@ -30,6 +30,36 @@
       - netbird-ui
     update_cache: true
 
+# No ufw module in ansible-core (it lives in community.general), so the
+# firewall is driven with guarded command tasks.
+- name: Host firewall package
+  ansible.builtin.apt:
+    name: ufw
+
+- name: Current firewall state
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status
+  failed_when: false
+  changed_when: false
+
+- name: Deny unsolicited inbound by default
+  ansible.builtin.command: ufw default deny incoming
+  when: ufw_status is failed or 'deny (incoming)' not in ufw_status.stdout
+
+- name: Allow NetBird peers to reach us (WireGuard data port)
+  ansible.builtin.command: ufw allow 51820/udp comment NetBird
+  when: ufw_status is failed or '51820' not in ufw_status.stdout
+
+# NetBird appends its own iptables accept for wt0, but ufw's chains sit in
+# front of it — without this rule, peer traffic inside the tunnel gets denied.
+- name: Allow traffic inside the NetBird tunnel
+  ansible.builtin.command: ufw allow in on wt0 comment NetBird
+  when: ufw_status is failed or "'wt0' not in ufw_status.stdout"
+
+- name: Enable the firewall
+  ansible.builtin.command: ufw --force enable
+  when: ufw_status is failed or 'Status: active' not in ufw_status.stdout
+
 - name: Allow non-root packet capture
   # must precede the wireshark install, which consumes this answer
   ansible.builtin.debconf:
