@@ -58,7 +58,7 @@
 
 - name: Enable the firewall
   ansible.builtin.command: ufw --force enable
-  when: ufw_status is failed or 'Status: active' not in ufw_status.stdout
+  when: "ufw_status is failed or 'Status: active' not in ufw_status.stdout"
 
 - name: Allow non-root packet capture
   # must precede the wireshark install, which consumes this answer
